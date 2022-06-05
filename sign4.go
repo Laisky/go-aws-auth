@@ -18,7 +18,7 @@ func hashedCanonicalRequestV4(request *http.Request, meta *metadata) string {
 	request.Header.Set("Host", request.Host)
 
 	var sortedHeaderKeys []string
-	for key, _ := range request.Header {
+	for key := range request.Header {
 		switch key {
 		case "Content-Type", "Content-Md5", "Host":
 		default:
