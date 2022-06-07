@@ -32,6 +32,7 @@ func serviceAndRegion(host string) (service string, region string) {
 	// These are the defaults if the hostname doesn't suggest something else
 	region = "us-east-1"
 	service = "s3"
+	return // FIXME: 改为可选参数
 
 	parts := strings.Split(host, ".")
 	if len(parts) == 4 {

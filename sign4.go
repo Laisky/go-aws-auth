@@ -3,31 +3,50 @@ package awsauth
 import (
 	"encoding/hex"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+var regexpSignedHeaders = regexp.MustCompile("SignedHeaders=([^,]+),")
 
 func hashedCanonicalRequestV4(request *http.Request, meta *metadata) string {
 	// TASK 1. http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 
 	payload := readAndReplaceBody(request)
 	payloadHash := hashSHA256(payload)
-	request.Header.Set("X-Amz-Content-Sha256", payloadHash)
+
+	if len(request.Header.Get("X-Amz-Content-Sha256")) == 64 {
+		// FIXME fileon、mc 根本没签 `X-Amz-Content-Sha256``
+		// 所以如果发现这个 HEADER 的值不是 54 位的 hash，就不要改这个值
+		request.Header.Set("X-Amz-Content-Sha256", payloadHash)
+	} else {
+		payloadHash = request.Header.Get("X-Amz-Content-Sha256")
+	}
 
 	// Set this in header values to make it appear in the range of headers to sign
 	request.Header.Set("Host", request.Host)
 
 	var sortedHeaderKeys []string
-	for key := range request.Header {
-		switch key {
-		case "Content-Type", "Content-Md5", "Host":
-		default:
-			if !strings.HasPrefix(key, "X-Amz-") {
-				continue
-			}
-		}
-		sortedHeaderKeys = append(sortedHeaderKeys, strings.ToLower(key))
+	// for key := range request.Header {
+	// 	switch key {
+	// 	// fileon only signed `Host`
+	// 	// case "Content-Type", "Content-Md5", "Host":
+	// 	case "Host":
+	// 	default:
+	// 		if !strings.HasPrefix(key, "X-Amz-") {
+	// 			continue
+	// 		}
+	// 	}
+	// 	sortedHeaderKeys = append(sortedHeaderKeys, strings.ToLower(key))
+	// }
+
+	matched := regexpSignedHeaders.FindAllStringSubmatch(request.Header.Get("Authorization"), -1)
+	if len(matched) > 0 && len(matched[0]) > 1 {
+		headers := strings.Split(matched[0][1], ";")
+		sortedHeaderKeys = append(sortedHeaderKeys, headers...)
 	}
+
 	sort.Strings(sortedHeaderKeys)
 
 	var headersToSign string
